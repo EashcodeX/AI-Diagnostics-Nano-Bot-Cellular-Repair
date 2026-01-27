@@ -1,6 +1,17 @@
 from mesa import Agent
 import random
 import math
+# No config imported in original step 66? Let's check step 66 content.
+# It seems step 66 agents.py code did NOT import config.
+# Wait, did it? "from agents import Cell, NanoBot" was in environment.
+# agents.py source:
+# from mesa import Agent
+# import random
+# import math
+# ...
+# It relies on model passes. It does NOT import config.
+# So agents.py might be fine.
+
 
 class Cell(Agent):
     """
@@ -12,8 +23,9 @@ class Cell(Agent):
     - 3: Neutralized/Dead
     """
     def __init__(self, unique_id, model, pos, is_cancer=False):
-        super().__init__(unique_id, model)
-        self.pos = pos
+        super().__init__(model)
+        self.unique_id = unique_id
+        # self.pos = pos # Handled by place_agent
         self.is_cancer = is_cancer
         self.damage_level = 0.0  # 0.0 to 1.0 (1.0 = destroyed/neutralized)
         self.being_repaired = False
@@ -41,7 +53,8 @@ class NanoBot(Agent):
     - ACTING: Repairing or Neutralizing
     """
     def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
+        super().__init__(model)
+        self.unique_id = unique_id
         self.state = "IDLE"
         self.target_cell = None
         self.battery = 100
@@ -58,15 +71,30 @@ class NanoBot(Agent):
             if self.target_cell and self.target_cell.damage_level < 1.0:
                 self.move_towards(self.target_cell.pos)
                 if self.pos == self.target_cell.pos:
-                    self.state = "ACTING"
+                    self.state = "SCANNING"
+                    self.scan_timer = 3  # Frames to scan
             else:
                 self.state = "IDLE"
                 self.target_cell = None
+
+        elif self.state == "SCANNING":
+            self.scan_timer -= 1
+            if self.scan_timer <= 0:
+                self.state = "ACTING"
+                # SWARM SIGNAL: Alert nearby idle bots
+                self.broadcast_target(self.target_cell)
 
         elif self.state == "ACTING":
             self.perform_action()
 
         self.battery -= 0.1  # Usage cost
+
+    def broadcast_target(self, target):
+        neighbors = self.model.grid.get_neighbors(self.pos, moore=True, include_center=False, radius=10)
+        for n in neighbors:
+            if isinstance(n, NanoBot) and n.state == "IDLE":
+                n.target_cell = target
+                n.state = "TARGETING"
 
     def random_movement(self):
         possible_steps = self.model.grid.get_neighborhood(

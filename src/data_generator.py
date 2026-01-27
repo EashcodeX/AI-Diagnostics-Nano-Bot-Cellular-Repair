@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 import random
-from config import IMG_SIZE, DATA_DIR
+from src.config import IMG_SIZE, DATA_DIR
 
 def create_healthy_cell(size=128):
     """Generates a smooth, circular healthy cell."""

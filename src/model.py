@@ -5,7 +5,7 @@ import pickle
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
-from config import IMG_SIZE, DATA_DIR, MODEL_PATH
+from src.config import IMG_SIZE, DATA_DIR, MODEL_PATH
 
 # Update config path for sklearn pickle
 RF_MODEL_PATH = MODEL_PATH.replace('.h5', '.pkl')
