@@ -9,6 +9,7 @@ NUM_CLASSES = 4
 # Simulation Environment
 GRID_WIDTH = 50
 GRID_HEIGHT = 50
+GRID_DEPTH = 50 # 3D Space
 CELL_COUNT = 30  # Number of biological cells
 INITIAL_CANCER_PCT = 0.2  # 20% start as cancer
 NANO_BOT_COUNT = 5

@@ -1,60 +1,31 @@
 from mesa import Agent
 import random
 import math
-# No config imported in original step 66? Let's check step 66 content.
-# It seems step 66 agents.py code did NOT import config.
-# Wait, did it? "from agents import Cell, NanoBot" was in environment.
-# agents.py source:
-# from mesa import Agent
-# import random
-# import math
-# ...
-# It relies on model passes. It does NOT import config.
-# So agents.py might be fine.
-
 
 class Cell(Agent):
     """
-    Biological Cell Agent.
-    State:
-    - 0: Healthy
-    - 1: Cancerous
-    - 2: Being Repaired (visual state)
-    - 3: Neutralized/Dead
+    Biological Cell Agent (3D).
     """
     def __init__(self, unique_id, model, pos, is_cancer=False):
         super().__init__(model)
         self.unique_id = unique_id
-        # self.pos = pos # Handled by place_agent
+        self.pos = pos # (x, y, z)
+        self.image = None # Placeholder for visualizer
         self.is_cancer = is_cancer
-        self.damage_level = 0.0  # 0.0 to 1.0 (1.0 = destroyed/neutralized)
+        self.damage_level = 0.0
         self.being_repaired = False
 
     def step(self):
-        # Cells are mostly static but could have biological behaviors here
         pass
-
-    @property
-    def color(self):
-        if self.damage_level >= 1.0:
-            return "black"  # Neutralized
-        if self.being_repaired:
-            return "yellow"
-        if self.is_cancer:
-            return "red"
-        return "green"
 
 class NanoBot(Agent):
     """
-    Nano-Bot Agent.
-    States:
-    - IDLE: Random walk
-    - TARGETING: Moving to a specific cell
-    - ACTING: Repairing or Neutralizing
+    Nano-Bot Agent (3D).
     """
     def __init__(self, unique_id, model):
         super().__init__(model)
         self.unique_id = unique_id
+        self.pos = (0, 0, 0) # Set by model
         self.state = "IDLE"
         self.target_cell = None
         self.battery = 100
@@ -64,9 +35,9 @@ class NanoBot(Agent):
         if self.battery <= 0:
             return  # Dead bot
         
-        # Record history (keep last 10 steps)
+        # Record history
         self.history.append(self.pos)
-        if len(self.history) > 10:
+        if len(self.history) > 15:
             self.history.pop(0)
 
         if self.state == "IDLE":
@@ -78,7 +49,7 @@ class NanoBot(Agent):
                 self.move_towards(self.target_cell.pos)
                 if self.pos == self.target_cell.pos:
                     self.state = "SCANNING"
-                    self.scan_timer = 3  # Frames to scan
+                    self.scan_timer = 3
             else:
                 self.state = "IDLE"
                 self.target_cell = None
@@ -87,53 +58,61 @@ class NanoBot(Agent):
             self.scan_timer -= 1
             if self.scan_timer <= 0:
                 self.state = "ACTING"
-                # SWARM SIGNAL: Alert nearby idle bots
                 self.broadcast_target(self.target_cell)
 
         elif self.state == "ACTING":
             self.perform_action()
 
-        self.battery -= 0.1  # Usage cost
+        self.battery -= 0.1
 
     def broadcast_target(self, target):
-        neighbors = self.model.grid.get_neighbors(self.pos, moore=True, include_center=False, radius=10)
-        for n in neighbors:
-            if isinstance(n, NanoBot) and n.state == "IDLE":
-                n.target_cell = target
-                n.state = "TARGETING"
+        # Brute force neighbor check in 3D
+        radius = 15
+        for n in self.model.agents_list:
+            if isinstance(n, NanoBot) and n.state == "IDLE" and n != self:
+                if self.get_distance(self.pos, n.pos) <= radius:
+                    n.target_cell = target
+                    n.state = "TARGETING"
 
     def random_movement(self):
-        possible_steps = self.model.grid.get_neighborhood(
-            self.pos, moore=True, include_center=False
-        )
-        new_position = self.random.choice(possible_steps)
-        self.model.grid.move_agent(self, new_position)
+        # 3D Random Walk
+        x, y, z = self.pos
+        dx = random.choice([-1, 0, 1])
+        dy = random.choice([-1, 0, 1])
+        dz = random.choice([-1, 0, 1])
+        
+        # Bounds check
+        w, h, d = self.model.space_dims
+        nx = max(0, min(w-1, x + dx))
+        ny = max(0, min(h-1, y + dy))
+        nz = max(0, min(d-1, z + dz))
+        
+        self.pos = (nx, ny, nz)
 
     def scan_for_targets(self):
-        # Scan local area (radius 5)
-        neighbors = self.model.grid.get_neighbors(self.pos, moore=True, include_center=True, radius=5)
-        candidates = [n for n in neighbors if isinstance(n, Cell) and n.is_cancer and n.damage_level < 1.0]
+        # Scan local 3D area
+        radius = 10
+        candidates = []
+        for n in self.model.agents_list:
+            if isinstance(n, Cell) and n.is_cancer and n.damage_level < 1.0:
+                 if self.get_distance(self.pos, n.pos) <= radius:
+                     candidates.append(n)
         
         if candidates:
-            # Pick closest
             closest = min(candidates, key=lambda c: self.get_distance(self.pos, c.pos))
             self.target_cell = closest
             self.state = "TARGETING"
 
     def move_towards(self, target_pos):
-        # Simple vector movement
-        x, y = self.pos
-        tx, ty = target_pos
+        x, y, z = self.pos
+        tx, ty, tz = target_pos
         
         dx = 1 if tx > x else (-1 if tx < x else 0)
         dy = 1 if ty > y else (-1 if ty < y else 0)
+        dz = 1 if tz > z else (-1 if tz < z else 0)
         
-        new_pos = (x + dx, y + dy)
-        if self.model.grid.is_cell_empty(new_pos): # Avoid collisions is optional, but safer
-             self.model.grid.move_agent(self, new_pos)
-        else:
-            # Just move randomly if blocked
-            self.random_movement()
+        # Move step
+        self.pos = (x + dx, y + dy, z + dz)
 
     def perform_action(self):
         if not self.target_cell:
@@ -141,19 +120,17 @@ class NanoBot(Agent):
             return
 
         if self.target_cell.is_cancer:
-            # Neutralize
-            self.target_cell.being_repaired = True # Visual indicator for 'action'
+            self.target_cell.being_repaired = True
             self.target_cell.damage_level += 0.2
             if self.target_cell.damage_level >= 1.0:
-                self.target_cell.is_cancer = False # Effectively dead
+                self.target_cell.is_cancer = False # Neutralized
                 self.target_cell.being_repaired = False
                 self.state = "IDLE"
                 self.target_cell = None
         else:
-            # Repair (simulating repairing damaged healthy cells if we had that logic)
             self.state = "IDLE"
 
     def get_distance(self, pos1, pos2):
-        x1, y1 = pos1
-        x2, y2 = pos2
-        return math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+        x1, y1, z1 = pos1
+        x2, y2, z2 = pos2
+        return math.sqrt((x1 - x2)**2 + (y1 - y2)**2 + (z1 - z2)**2)

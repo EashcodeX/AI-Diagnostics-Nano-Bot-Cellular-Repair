@@ -1,173 +1,101 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-import matplotlib.patches as patches
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
-import os
-import cv2
-import random
 from src.agents import Cell, NanoBot
-from src.config import DATA_DIR, IMG_SIZE
+from src.config import GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH
 
 class Visualization:
     def __init__(self, model):
         self.model = model
-        self.fig, self.ax = plt.subplots(figsize=(10, 10))
-        self.fig.canvas.manager.set_window_title("AI Diagnostics Nano-Bot Simulation (Enhanced UX)")
+        self.fig = plt.figure(figsize=(12, 10))
+        self.fig.canvas.manager.set_window_title("AI Diagnostics Nano-Bot Simulation (3D V2)")
+        self.ax = self.fig.add_subplot(111, projection='3d')
         self.ax.set_facecolor('#050a14')
         
-        self.text_stats = None
-        self.artists = []
-        
-        # Load sample images for rendering
-        self.healthy_imgs = self.load_sample_images('normal')
-        self.cancer_imgs = self.load_sample_images('adenocarcinoma_left.lower.lobe_T2_N0_M0_Ib') 
-        if not self.cancer_imgs: 
-             self.cancer_imgs = self.load_sample_images('cancer')
-             
-        # Pre-assign an image to each agent
-        for agent in self.model.agents_list:
-            if isinstance(agent, Cell):
-                if agent.is_cancer:
-                    agent.image = random.choice(self.cancer_imgs) if self.cancer_imgs else np.zeros((32,32,3))
-                else:
-                    agent.image = random.choice(self.healthy_imgs) if self.healthy_imgs else np.zeros((32,32,3))
-
-        # NanoBot Image
-        self.bot_img = np.zeros((32, 32, 4), dtype=np.uint8)
-        pts = np.array([[16, 2], [2, 30], [30, 30]], np.int32)
-        cv2.fillPoly(self.bot_img, [pts], (0, 255, 255, 255)) 
-
-        # Legend Assets
-        self.legend_elements = self.create_legend_elements()
-        
-    def create_legend_elements(self):
-        # Create proxy artists for legend
-        legend_patches = [
-            patches.Patch(color='green', label='Healthy Cell'),
-            patches.Patch(color='red', label='Cancer Cell'),
-            patches.Patch(color='black', label='Neutralized'),
-            patches.Patch(color='cyan', label='Nano-Bot'),
-            patches.Patch(color='yellow', label='Scanning/Repair'),
-        ]
-        return legend_patches
-
-    def load_sample_images(self, category, count=10):
-        images = []
-        target_path = None
-        train_dir = os.path.join(DATA_DIR, 'train')
-        if os.path.exists(train_dir):
-            for d in os.listdir(train_dir):
-                if category in d:
-                    target_path = os.path.join(train_dir, d)
-                    break
-        
-        if not target_path or not os.path.exists(target_path):
-             return []
-
-        for f in os.listdir(target_path)[:count]:
-            if f.startswith('.'): continue
-            path = os.path.join(target_path, f)
-            img = cv2.imread(path)
-            if img is not None:
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                img = cv2.resize(img, (32, 32))
-                mask = np.zeros((32,32), dtype=np.uint8)
-                cv2.circle(mask, (16,16), 16, (255), -1)
-                img = cv2.bitwise_and(img, img, mask=mask)
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2RGBA)
-                img[:, :, 3] = mask
-                images.append(img)
-        return images
-
     def init_plot(self):
-        self.ax.clear()
-        self.ax.set_xlim(-1, self.model.grid.width)
-        self.ax.set_ylim(-1, self.model.grid.height)
-        self.ax.set_aspect('equal')
-        self.ax.axis('off')
+        self.update(0)
         return []
 
     def update(self, frame):
         self.model.step()
         self.ax.clear()
-        self.artists = []
         
-        self.ax.set_facecolor('#050a14')
-        self.ax.set_xlim(-1, self.model.grid.width)
-        self.ax.set_ylim(-1, self.model.grid.height)
-        self.ax.axis('off')
-        
-        # Grid lines for "Scientific" look
+        # Style
+        self.ax.set_facecolor('#050a14') # Dark BG
+        self.fig.set_facecolor('#050a14')
         self.ax.grid(color='white', linestyle='-', linewidth=0.1, alpha=0.1)
+        self.ax.set_xlim(0,  self.model.space_dims[0])
+        self.ax.set_ylim(0,  self.model.space_dims[1])
+        self.ax.set_zlim(0,  self.model.space_dims[2])
+        self.ax.axis('off') # Hide axes for immersion
         
-        # Render Cells
-        for agent in self.model.agents_list:
-            if isinstance(agent, Cell):
-                img_disp = agent.image.copy()
-                if agent.damage_level >= 1.0: 
-                     img_disp = (img_disp * 0.2).astype(np.uint8)
-                elif agent.being_repaired: 
-                     overlay = np.full_like(img_disp, (255, 255, 0, 100), dtype=np.uint8)
-                     cv2.addWeighted(overlay, 0.3, img_disp, 0.7, 0, img_disp)
-                     
-                     # PULSE EFFECT: Draw ring around repairing cell
-                     pulse_radius = 1.0 + 0.2 * np.sin(frame * 0.5)
-                     circle = plt.Circle(agent.pos, pulse_radius, color='yellow', fill=False, linewidth=2, alpha=0.7)
-                     self.ax.add_artist(circle)
+        # Camera Rotation
+        angle = frame * 0.5
+        self.ax.view_init(elev=20, azim=angle)
 
-                imagebox = OffsetImage(img_disp, zoom=0.8)
-                ab = AnnotationBbox(imagebox, agent.pos, frameon=False)
-                self.ax.add_artist(ab)
-                
-            elif isinstance(agent, NanoBot):
-                current_bot_img = self.bot_img.copy()
-                if agent.state == "SCANNING":
-                     # Blue glow already default?
-                     pass 
-                elif agent.state == "ACTING":
-                     current_bot_img[:,:,0] = 255 # R
-                
-                # TRAIL EFFECT
-                if hasattr(agent, 'history') and len(agent.history) > 1:
-                    hx = [p[0] for p in agent.history]
-                    hy = [p[1] for p in agent.history]
-                    self.ax.plot(hx, hy, color='cyan', linewidth=1, alpha=0.3)
-                
-                imagebox = OffsetImage(current_bot_img, zoom=0.6)
-                ab = AnnotationBbox(imagebox, agent.pos, frameon=False)
-                self.ax.add_artist(ab)
-                
-                # Targeting Lines
-                if agent.state != "IDLE" and agent.target_cell:
-                    tx, ty = agent.target_cell.pos
-                    bx, by = agent.pos
-                    col = 'cyan'
-                    if agent.state == 'SCANNING': col = 'white'
-                    if agent.state == 'ACTING': col = 'red'
-                    self.ax.plot([bx, tx], [by, ty], color=col, linewidth=1, alpha=0.6)
-
-        # Legend
-        leg = self.ax.legend(handles=self.legend_elements, loc='upper right', 
-                       facecolor='black', edgecolor='cyan', labelcolor='white', fontsize=8)
-        
-        # Stats HUD
+        # Plot Data
         cells = [a for a in self.model.agents_list if isinstance(a, Cell)]
         bots = [a for a in self.model.agents_list if isinstance(a, NanoBot)]
-        
+
+        # Cells (Spheres represented as scatter points with transparency)
+        c_x, c_y, c_z, c_c, c_s = [], [], [], [], []
+        for c in cells:
+            c_x.append(c.pos[0])
+            c_y.append(c.pos[1])
+            c_z.append(c.pos[2])
+            
+            # Color logic
+            if c.damage_level >= 1.0:
+                col = 'black'
+            elif c.being_repaired:
+                col = 'yellow'
+            elif c.is_cancer:
+                col = 'red'
+            else:
+                col = 'green'
+            c_c.append(col)
+            c_s.append(200 if c.is_cancer else 100) # Cancer slightly larger
+
+        self.ax.scatter(c_x, c_y, c_z, c=c_c, s=c_s, alpha=0.8, edgecolors='w', linewidth=0.5)
+
+        # Bots (Cones/Triangles)
+        b_x, b_y, b_z, b_c = [], [], [], []
+        for b in bots:
+            b_x.append(b.pos[0])
+            b_y.append(b.pos[1])
+            b_z.append(b.pos[2])
+            
+            col = 'cyan'
+            if b.state == 'SCANNING': col = 'white'
+            if b.state == 'ACTING': col = 'magenta'
+            b_c.append(col)
+            
+            # Draw targeting lines
+            if b.state != "IDLE" and b.target_cell:
+                tx, ty, tz = b.target_cell.pos
+                self.ax.plot([b.pos[0], tx], [b.pos[1], ty], [b.pos[2], tz], color=col, linewidth=1, alpha=0.6)
+            
+            # Draw trails
+            if len(b.history) > 1:
+                hx = [p[0] for p in b.history]
+                hy = [p[1] for p in b.history]
+                hz = [p[2] for p in b.history]
+                self.ax.plot(hx, hy, hz, color='cyan', linewidth=0.5, alpha=0.3)
+
+        self.ax.scatter(b_x, b_y, b_z, c=b_c, marker='^', s=100, alpha=1.0) # Bots as triangles
+
+        # HUD Stats (2D overlay)
         healthy_count = len([c for c in cells if not c.is_cancer])
         cancer_active = len([c for c in cells if c.is_cancer and c.damage_level < 1.0])
-        neutralized = len([c for c in cells if c.is_cancer and c.damage_level >= 1.0])
         
-        stats = (f"Healthy Cells: {healthy_count}\n"
-                 f"Active Cancer: {cancer_active}\n"
-                 f"Neutralized: {neutralized}\n"
-                 f"Swarm Bots: {len(bots)}")
+        stats = (f"Healthy: {healthy_count}\n"
+                 f"Cancer: {cancer_active}\n"
+                 f"Bots: {len(bots)}")
         
-        self.ax.text(0.02, 0.9, stats, transform=self.ax.transAxes, color="#00f2ff", fontsize=10, 
-                     family='monospace', weight='bold',
-                     bbox=dict(facecolor='#050a14', alpha=0.8, edgecolor='#00f2ff'))
+        self.ax.text2D(0.05, 0.95, stats, transform=self.ax.transAxes, color="#00f2ff", fontsize=12,
+                       bbox=dict(facecolor='black', alpha=0.5, edgecolor='cyan'))
 
     def show(self):
-        ani = animation.FuncAnimation(self.fig, self.update, init_func=self.init_plot, frames=200, interval=150)
+        ani = animation.FuncAnimation(self.fig, self.update, init_func=self.init_plot, frames=360, interval=50)
         plt.show()
