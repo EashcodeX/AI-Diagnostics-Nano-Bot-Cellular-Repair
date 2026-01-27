@@ -58,10 +58,16 @@ class NanoBot(Agent):
         self.state = "IDLE"
         self.target_cell = None
         self.battery = 100
+        self.history = [] # For trails
 
     def step(self):
         if self.battery <= 0:
             return  # Dead bot
+        
+        # Record history (keep last 10 steps)
+        self.history.append(self.pos)
+        if len(self.history) > 10:
+            self.history.pop(0)
 
         if self.state == "IDLE":
             self.random_movement()
