@@ -24,6 +24,9 @@ class Visualization:
         self.ax_sim = self.fig.add_subplot(gs[:, :3], projection='3d')
         self.ax_sim.set_facecolor(self.bg_color)
         
+        # Connect Controls
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key)
+        
         # Analytics Views (Right 1/4)
         self.ax_stats1 = self.fig.add_subplot(gs[0, 3]) # Population Graph
         self.ax_stats2 = self.fig.add_subplot(gs[1, 3]) # Efficiency/Other
@@ -45,6 +48,17 @@ class Visualization:
         self.history_bots_active = []
         self.frames = []
         
+        # Particle System
+        self.particles = [] # List of dicts: {'pos': (x,y,z), 'life': 10, 'color': 'color', 'vel': (dx,dy,dz)}
+        
+    def on_key(self, event):
+        if event.key == 'c':
+            self.model.add_cancer()
+            print("Injecting Cancer Cell...")
+        elif event.key == 'b':
+            self.model.add_bot()
+            print("Deploying Nano-Bot...")
+            
     def init_plot(self):
         return []
 
@@ -54,19 +68,13 @@ class Visualization:
         # --- 3D Simulation Update ---
         self.ax_sim.clear()
         self.ax_sim.set_facecolor(self.bg_color)
-        self.ax_sim.grid(False) # Custom grid looks better or minimal grid
+        self.ax_sim.axis('off')
         
-        # Custom Grid-Floor
+        # Dynamic Camera (Slow Rotation)
+        self.ax_sim.view_init(elev=25, azim=frame * 0.2)
         self.ax_sim.set_xlim(0, self.model.space_dims[0])
         self.ax_sim.set_ylim(0, self.model.space_dims[1])
         self.ax_sim.set_zlim(0, self.model.space_dims[2])
-        self.ax_sim.axis('off')
-        
-        # Draw tech-grid floor
-        # (Optional: specialized drawing for floor if needed, skipping for performance/cleanliness)
-
-        # Dynamic Camera (Slow Rotation)
-        self.ax_sim.view_init(elev=25, azim=frame * 0.2)
 
         # Collect Data
         cells = [a for a in self.model.agents_list if isinstance(a, Cell)]
@@ -119,6 +127,18 @@ class Visualization:
             c_y.append(c.pos[1])
             c_z.append(c.pos[2])
             
+            # Check for events
+            if c.just_neutralized:
+                # Spawn Explosion Particles
+                for _ in range(10): # 10 particles per explosion
+                    self.particles.append({
+                        'pos': c.pos,
+                        'life': 15,
+                        'color': '#00ff41', # Green flash
+                        'vel': np.random.uniform(-1, 1, 3) 
+                    })
+                c.just_neutralized = False
+            
             if c.is_cancer:
                 # Pulse effect for cancer
                 pulse = (np.sin(frame * 0.2) + 1.5) * 0.5 
@@ -127,12 +147,19 @@ class Visualization:
             elif c.being_repaired:
                 c_s.append(120)
                 c_c.append('#fdf500') # Neon Yellow
+                # Spawn repair sparks occasionally
+                if np.random.random() < 0.3:
+                     self.particles.append({
+                        'pos': c.pos,
+                        'life': 5,
+                        'color': '#fdf500', 
+                        'vel': np.random.uniform(-0.5, 0.5, 3) 
+                    })
             else:
                 c_s.append(50)
                 c_c.append('#002e12') # Dark Green (Passive)
         
         self.ax_sim.scatter(c_x, c_y, c_z, c=c_c, s=c_s, alpha=0.9, edgecolors='none', depthshade=True)
-        # Add glow effect (simulate by plotting larger, more transparent points behind? - Skipped for perf, simple update first)
 
         # Bots
         b_x, b_y, b_z, b_c = [], [], [], []
@@ -155,13 +182,38 @@ class Visualization:
 
         self.ax_sim.scatter(b_x, b_y, b_z, c=b_c, marker='^', s=80, alpha=1.0)
         
+        # --- Update and Draw Particles ---
+        p_x, p_y, p_z, p_c, p_s = [], [], [], [], []
+        for p in self.particles[:]:
+            p['life'] -= 1
+            if p['life'] <= 0:
+                self.particles.remove(p)
+                continue
+            
+            # Move particle
+            x, y, z = p['pos']
+            vx, vy, vz = p['vel']
+            p['pos'] = (x+vx, y+vy, z+vz)
+            
+            p_x.append(p['pos'][0])
+            p_y.append(p['pos'][1])
+            p_z.append(p['pos'][2])
+            p_c.append(p['color'])
+            p_s.append(p['life'] * 5) # Fade out size
+            
+        if p_x:
+            self.ax_sim.scatter(p_x, p_y, p_z, c=p_c, s=p_s, alpha=0.8, marker='.')
+
         # --- HUD Text ---
         hud_text = (
             f"SYSTEM STATUS: ONLINE\n"
             f"THREAT LEVEL: {'CRITICAL' if cancer_count > 5 else 'STABLE'}\n"
             f"---------------------\n"
             f"HEALTH INTEGRITY: {int((healthy_count / (healthy_count + cancer_count + 1)) * 100)}%\n"
-            f"BOT EFFICIENCY: {int((active_bots / (len(bots)+0.1)) * 100)}%"
+            f"BOT EFFICIENCY: {int((active_bots / (len(bots)+0.1)) * 100)}%\n"
+            f"\nCONTROLS:\n"
+            f"[C] INJECT CANCER\n"
+            f"[B] DEPLOY BOT"
         )
         self.ax_sim.text2D(0.02, 0.95, hud_text, transform=self.ax_sim.transAxes, color='#00f2ff', fontsize=12, family='monospace')
 

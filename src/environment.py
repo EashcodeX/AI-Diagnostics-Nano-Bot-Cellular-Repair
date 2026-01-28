@@ -49,3 +49,21 @@ class Bloodstream(Model):
         random.shuffle(self.agents_list)
         for agent in self.agents_list:
             agent.step()
+
+    def add_cancer(self):
+        # Spawn new cancer cell
+        idx = len(self.agents_list) + 1
+        x = random.randrange(self.space_dims[0])
+        y = random.randrange(self.space_dims[1])
+        z = random.randrange(self.space_dims[2])
+        cell = Cell(idx, self, (x, y, z), is_cancer=True)
+        self.agents_list.append(cell)
+
+    def add_bot(self):
+        idx = len(self.agents_list) + 1
+        x = random.randrange(self.space_dims[0])
+        y = random.randrange(self.space_dims[1])
+        z = random.randrange(self.space_dims[2])
+        bot = NanoBot(idx, self)
+        bot.pos = (x, y, z)
+        self.agents_list.append(bot)
