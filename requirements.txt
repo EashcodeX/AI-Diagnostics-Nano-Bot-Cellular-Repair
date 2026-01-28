@@ -1,4 +1,5 @@
-opencv-python-headless
-matplotlib
+matplotib
 numpy
 mesa
+fastapi
+uvicorn
