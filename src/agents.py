@@ -14,6 +14,7 @@ class Cell(Agent):
         self.is_cancer = is_cancer
         self.damage_level = 0.0
         self.being_repaired = False
+        self.just_neutralized = False
 
     def step(self):
         pass
@@ -124,6 +125,7 @@ class NanoBot(Agent):
             self.target_cell.damage_level += 0.2
             if self.target_cell.damage_level >= 1.0:
                 self.target_cell.is_cancer = False # Neutralized
+                self.target_cell.just_neutralized = True
                 self.target_cell.being_repaired = False
                 self.state = "IDLE"
                 self.target_cell = None
