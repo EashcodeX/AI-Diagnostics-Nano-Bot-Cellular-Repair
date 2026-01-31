@@ -1,14 +1,33 @@
 import { useState, useEffect } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Play, Pause, RotateCcw, ChevronRight, Search, Bell, ShieldCheck, AlertCircle, Zap, Users, MoreHorizontal, Plus } from 'lucide-react';
+import {
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    BarChart, Bar, LineChart, Line, ReferenceLine
+} from 'recharts';
+import {
+    Play, Pause, RotateCcw, ChevronRight, Search, Bell, ShieldCheck,
+    AlertCircle, Zap, Users, MoreHorizontal, Plus, Activity, Heart,
+    Wind, Brain, Thermometer, Crosshair, Map, Filter, Sliders,
+    Download, Printer, Share2, Database, Terminal
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = 'http://localhost:8001';
 
 export default function Dashboard() {
     const [data, setData] = useState(null);
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('overview');
+
+    // Simulated Bio-Metrics
+    const [bioMetrics, setBioMetrics] = useState({
+        heartRate: 72,
+        bpSys: 120,
+        bpDia: 80,
+        o2: 98,
+        temp: 37.0,
+        neuralLoad: 45
+    });
 
     const fetchData = async () => {
         try {
@@ -21,7 +40,8 @@ export default function Dashboard() {
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
                     healthy: json.healthy,
                     cancer: json.cancer,
-                    efficiency: json.efficiency
+                    efficiency: json.efficiency,
+                    load: Math.random() * 20 + 30
                 };
                 const newHistory = [...prev, newEntry];
                 if (newHistory.length > 50) newHistory.shift();
@@ -33,8 +53,23 @@ export default function Dashboard() {
         }
     };
 
+    // Simulate biological fluctuations
     useEffect(() => {
-        const interval = setInterval(fetchData, 500); // Slower poll for main dashboard
+        const bioInterval = setInterval(() => {
+            setBioMetrics(prev => ({
+                heartRate: Math.max(60, Math.min(100, prev.heartRate + (Math.random() - 0.5) * 5)),
+                bpSys: Math.max(110, Math.min(140, prev.bpSys + (Math.random() - 0.5) * 4)),
+                bpDia: Math.max(70, Math.min(90, prev.bpDia + (Math.random() - 0.5) * 2)),
+                o2: Math.max(95, Math.min(100, prev.o2 + (Math.random() - 0.5))),
+                temp: 37.0 + (Math.random() - 0.5) * 0.2,
+                neuralLoad: Math.max(20, Math.min(80, prev.neuralLoad + (Math.random() - 0.5) * 10))
+            }));
+        }, 1000);
+        return () => clearInterval(bioInterval);
+    }, []);
+
+    useEffect(() => {
+        const interval = setInterval(fetchData, 500);
         return () => clearInterval(interval);
     }, []);
 
@@ -46,184 +81,234 @@ export default function Dashboard() {
         await fetch(`${API_URL}/spawn/${type}`, { method: 'POST' });
     };
 
-    if (loading) return <div className="p-10 text-slate-500">Loading System Metrics...</div>;
+    if (loading) return <div className="p-10 text-slate-500 font-mono">INITIALIZING DASHBOARD SYSTEMS...</div>;
 
     return (
-        <div>
-            {/* HEADER */}
-            <header className="flex justify-between items-center mb-8">
+        <div className="space-y-6">
+            {/* TOP BAR - COMPLEX STATUS */}
+            <header className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <div>
-                    <nav className="flex items-center text-sm text-slate-500 mb-1">
-                        <span>Overview</span>
-                        <ChevronRight size={14} className="mx-2" />
-                        <span className="font-medium text-slate-900">Real-time Analysis</span>
-                    </nav>
-                    <h1 className="text-2xl font-bold text-slate-900">Mission Control</h1>
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
+                        <Activity size={12} className="text-emerald-500 animate-pulse" /> System Online
+                        <span className="text-slate-300">|</span>
+                        <span>v2.4.0-RC4</span>
+                    </div>
+                    <h1 className="text-xl font-bold text-slate-900 tracking-tight">Mission Control Center</h1>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input type="text" placeholder="Search..." className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-500 w-64 bg-white shadow-sm transition-all" />
+                <div className="flex items-center gap-6">
+                    <div className="hidden md:block text-right">
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Server Latency</div>
+                        <div className="font-mono font-bold text-emerald-600">12ms <span className="text-slate-300">stable</span></div>
                     </div>
-                    <button className="p-2 border border-slate-200 rounded-lg bg-white shadow-sm text-slate-500 hover:text-slate-700 relative">
-                        <Bell size={20} />
-                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                    </button>
+                    <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+                    <div className="flex gap-2">
+                        <button onClick={() => sendControl('start')} disabled={data.running} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 border transition-all ${data.running ? 'bg-slate-50 text-slate-400 border-slate-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:shadow-emerald-100 hover:shadow-md'}`}>
+                            <Play size={14} /> INITIALIZE
+                        </button>
+                        <button onClick={() => sendControl('stop')} disabled={!data.running} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 border transition-all ${!data.running ? 'bg-slate-50 text-slate-400 border-slate-100' : 'bg-amber-50 text-amber-700 border-amber-200 hover:shadow-amber-100 hover:shadow-md'}`}>
+                            <Pause size={14} /> HALT
+                        </button>
+                        <button onClick={() => sendControl('reset')} className="px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 border bg-white border-slate-200 text-slate-600 hover:bg-slate-50">
+                            <RotateCcw size={14} /> RESET
+                        </button>
+                    </div>
                 </div>
             </header>
 
-            {/* STATUS BAR */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${data.running ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
-                        {data.running ? <Play size={24} fill="currentColor" /> : <Pause size={24} fill="currentColor" />}
-                    </div>
-                    <div>
-                        <div className="text-sm text-slate-500 font-medium">System Status</div>
-                        <div className={`text-lg font-bold flex items-center gap-2 ${data.running ? 'text-slate-900' : 'text-slate-500'}`}>
-                            {data.running ? 'Active Simulation' : 'Paused / Standby'}
-                            {data.running && <span className="relative flex h-2.5 w-2.5 ml-1"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span></span>}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex gap-3 w-full md:w-auto">
-                    <ActionButton onClick={() => sendControl('start')} icon={Play} label="Start" primary disabled={data.running} />
-                    <ActionButton onClick={() => sendControl('stop')} icon={Pause} label="Pause" disabled={!data.running} />
-                    <ActionButton onClick={() => sendControl('reset')} icon={RotateCcw} label="Reset" />
-                </div>
-            </div>
-
-            {/* METRICS GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <MetricCard title="Health Integrity" value={`${Math.round((data.healthy / data.total_cells) * 100)}%`} icon={ShieldCheck} color="text-emerald-600" bg="bg-emerald-50" />
-                <MetricCard title="Threat Detected" value={data.cancer} icon={AlertCircle} color="text-rose-600" bg="bg-rose-50" label="Active Cells" />
-                <MetricCard title="Bot Efficiency" value={`${data.efficiency}%`} icon={Zap} color="text-amber-600" bg="bg-amber-50" />
-                <MetricCard title="Active Fleet" value={data.active_bots} icon={Users} color="text-sky-600" bg="bg-sky-50" label={`Total: ${data.total_bots}`} />
+            {/* BIO-TELEMETRY GRID */}
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+                <BioCard label="Heart Rate" value={Math.round(bioMetrics.heartRate)} unit="BPM" icon={Heart} color="text-rose-500" trend="+2%" />
+                <BioCard label="Blood Pressure" value={`${Math.round(bioMetrics.bpSys)}/${Math.round(bioMetrics.bpDia)}`} unit="mmHg" icon={Activity} color="text-rose-500" />
+                <BioCard label="Oxygen Level" value={Math.round(bioMetrics.o2)} unit="%" icon={Wind} color="text-sky-500" safe />
+                <BioCard label="Core Temp" value={bioMetrics.temp.toFixed(1)} unit="°C" icon={Thermometer} color="text-amber-500" />
+                <BioCard label="Neural Load" value={Math.round(bioMetrics.neuralLoad)} unit="Hz" icon={Brain} color="text-purple-500" />
+                <BioCard label="Nano-Integrity" value="99.9" unit="%" icon={ShieldCheck} color="text-emerald-500" safe />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                {/* MAIN CHART */}
-                <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-800">Population Trends</h3>
-                            <p className="text-sm text-slate-500">Real-time analysis of healthy vs pathogen cells</p>
+                {/* LEFT COLUMN - MAIN CHARTING */}
+                <div className="lg:col-span-2 space-y-6">
+                    {/* PRIMARY CHART ARRAY */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-1">
+                        <div className="flex bg-slate-50/50 border-b border-slate-100 p-2 gap-2">
+                            <TabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={Activity} label="Population Dynamics" />
+                            <TabButton active={activeTab === 'efficiency'} onClick={() => setActiveTab('efficiency')} icon={Zap} label="Fleet Efficiency" />
+                            <TabButton active={activeTab === 'network'} onClick={() => setActiveTab('network')} icon={Share2} label="Network Traffic" />
                         </div>
-                        <div className="flex gap-2">
-                            <span className="flex items-center gap-1.5 text-xs font-semibold px-2 py-1 bg-emerald-50 text-emerald-700 rounded-md border border-emerald-100">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Healthy
-                            </span>
-                            <span className="flex items-center gap-1.5 text-xs font-semibold px-2 py-1 bg-rose-50 text-rose-700 rounded-md border border-rose-100">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Cancer
-                            </span>
+
+                        <div className="p-4 h-[350px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={history}>
+                                    <defs>
+                                        <linearGradient id="healthyGradient" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="cancerGradient" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                    <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                    <Area type="monotone" dataKey="healthy" stackId="1" stroke="#10b981" fill="url(#healthyGradient)" />
+                                    <Area type="monotone" dataKey="cancer" stackId="1" stroke="#f43f5e" fill="url(#cancerGradient)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
                         </div>
                     </div>
 
-                    <div className="h-[350px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={history}>
-                                <defs>
-                                    <linearGradient id="healthyGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                    </linearGradient>
-                                    <linearGradient id="cancerGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                <XAxis dataKey="time" tick={{ fontSize: 12, fill: '#64748b' }} tickLine={false} axisLine={false} dy={10} minTickGap={30} />
-                                <YAxis tick={{ fontSize: 12, fill: '#64748b' }} tickLine={false} axisLine={false} dx={-10} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                    itemStyle={{ fontSize: '12px', fontWeight: 500 }}
-                                />
-                                <Area type="monotone" dataKey="healthy" stroke="#10b981" strokeWidth={2} fill="url(#healthyGradient)" animationDuration={500} />
-                                <Area type="monotone" dataKey="cancer" stroke="#f43f5e" strokeWidth={2} fill="url(#cancerGradient)" animationDuration={500} />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                    {/* SECTOR ANALYSIS & HEATMAP */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xs font-bold uppercase text-slate-400 flex items-center gap-2"><Map size={14} /> Sector Density</h3>
+                                <Filter size={14} className="text-slate-400" />
+                            </div>
+                            <div className="grid grid-cols-4 gap-1 h-32">
+                                {Array.from({ length: 16 }).map((_, i) => (
+                                    <div key={i} className={`rounded-sm transition-all duration-500 ${Math.random() > 0.7 ? 'bg-sky-100' : Math.random() > 0.9 ? 'bg-rose-100' : 'bg-slate-50'}`}></div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xs font-bold uppercase text-slate-400 flex items-center gap-2"><Database size={14} /> Resource Allocation</h3>
+                                <Download size={14} className="text-slate-400" />
+                            </div>
+                            <div className="space-y-3">
+                                <ProgressBar label="Computing Power" value={78} color="bg-indigo-500" />
+                                <ProgressBar label="Bandwidth" value={45} color="bg-cyan-500" />
+                                <ProgressBar label="Energy Reserves" value={92} color="bg-emerald-500" />
+                                <ProgressBar label="Active Threads" value={23} color="bg-amber-500" />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* ACTIONS PANEL */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col h-full">
-                    <h3 className="text-lg font-bold text-slate-800 mb-1">Quick Actions</h3>
-                    <p className="text-sm text-slate-500 mb-6">Manually intervene in simulation</p>
+                {/* RIGHT COLUMN - COMMAND CENTER */}
+                <div className="space-y-6">
+                    {/* THREAT MONITOR */}
+                    <div className="bg-slate-900 rounded-xl p-6 text-white shadow-lg relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-10"><AlertCircle size={120} /></div>
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Current DEFCON</h3>
+                        <div className="text-4xl font-black text-rose-500 tracking-tighter mb-4">LEVEL 4</div>
 
-                    <div className="space-y-4">
-                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between group hover:border-slate-200 transition-all">
-                            <div>
-                                <div className="font-semibold text-slate-700 text-sm">Inject Pathogen</div>
-                                <div className="text-xs text-slate-500">Add 1x Cancer Cell</div>
+                        <div className="space-y-4 relative z-10">
+                            <div className="flex justify-between items-center text-sm border-b border-slate-800 pb-2">
+                                <span className="text-slate-400">Threat Vectors</span>
+                                <span className="text-rose-400 font-mono font-bold">{data.cancer} DETECTED</span>
                             </div>
-                            <motion.button whileTap={{ scale: 0.95 }} onClick={() => spawn('cancer')} className="p-2 bg-white border border-slate-200 rounded-lg group-hover:border-rose-300 group-hover:text-rose-600 transition-colors shadow-sm">
-                                <Plus size={18} />
-                            </motion.button>
-                        </div>
-
-                        <div className="p-4 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between group hover:border-slate-200 transition-all">
-                            <div>
-                                <div className="font-semibold text-slate-700 text-sm">Deploy Nano-Bot</div>
-                                <div className="text-xs text-slate-500">Add 1x Repair Unit</div>
+                            <div className="flex justify-between items-center text-sm border-b border-slate-800 pb-2">
+                                <span className="text-slate-400">Containment</span>
+                                <span className="text-emerald-400 font-mono font-bold">94.2%</span>
                             </div>
-                            <motion.button whileTap={{ scale: 0.95 }} onClick={() => spawn('bot')} className="p-2 bg-white border border-slate-200 rounded-lg group-hover:border-sky-300 group-hover:text-sky-600 transition-colors shadow-sm">
-                                <Plus size={18} />
-                            </motion.button>
+                            <div className="flex justify-between items-center text-sm border-b border-slate-800 pb-2">
+                                <span className="text-slate-400">Auto-Response</span>
+                                <span className="text-amber-400 font-mono font-bold">ENGAGED</span>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="mt-auto pt-6 border-t border-slate-100">
-                        <div className="flex justify-between items-center text-xs text-slate-400 mb-2">
-                            <span>Server Latency</span>
-                            <span className="font-mono text-slate-600">12ms</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                            <div className="bg-emerald-500 h-full w-[92%] rounded-full"></div>
+                    {/* TACTICAL DEPLOYMENT */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                        <h3 className="text-xs font-bold uppercase text-slate-400 mb-4 flex items-center gap-2"><Crosshair size={14} /> Tactical Deployment</h3>
+
+                        <div className="space-y-4">
+                            <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-xs font-bold text-rose-800">PATHOGEN_INJECTOR.exe</span>
+                                    <span className="text-[10px] bg-rose-200 text-rose-800 px-1.5 rounded font-mono">ROOT_AUTH</span>
+                                </div>
+                                <button onClick={() => spawn('cancer')} className="w-full py-2 bg-white border border-rose-200 text-rose-600 rounded text-xs font-bold hover:bg-rose-600 hover:text-white transition-all shadow-sm">
+                                    EXECUTE INJECTION
+                                </button>
+                            </div>
+
+                            <div className="p-3 bg-sky-50 border border-sky-100 rounded-lg">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-xs font-bold text-sky-800">NANO_REPAIR_UNIT.deploy</span>
+                                    <span className="text-[10px] bg-sky-200 text-sky-800 px-1.5 rounded font-mono">READY</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                    <div className="bg-white p-1.5 rounded border border-sky-100 text-[10px] text-center text-slate-500">
+                                        <div className="font-bold text-slate-700">MK-IV</div>
+                                        Model
+                                    </div>
+                                    <div className="bg-white p-1.5 rounded border border-sky-100 text-[10px] text-center text-slate-500">
+                                        <div className="font-bold text-slate-700">AGGRESSIVE</div>
+                                        Mode
+                                    </div>
+                                </div>
+                                <button onClick={() => spawn('bot')} className="w-full py-2 bg-sky-600 text-white rounded text-xs font-bold hover:bg-sky-700 transition-all shadow-md shadow-sky-200">
+                                    DEPLOY UNIT
+                                </button>
+                            </div>
                         </div>
                     </div>
+
+                    {/* TERMINAL PREVIEW */}
+                    <div className="bg-slate-900 rounded-xl p-4 font-mono text-[10px] text-slate-400 overflow-hidden">
+                        <div className="flex items-center gap-2 border-b border-slate-800 pb-2 mb-2">
+                            <Terminal size={12} /> <span className="uppercase font-bold">System Kernel</span>
+                        </div>
+                        <div className="space-y-1 opacity-70">
+                            <div>> INIT_VIZUALIZATION_MATRIX... OK</div>
+                            <div>> CONNECTING_TO_HOST... OK</div>
+                            <div>> BIOMETRIC_STREAM_ESTABLISHED</div>
+                            <div className="text-emerald-500">> SYSTEM_READY</div>
+                            <div className="animate-pulse">_</div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
     );
 }
 
-function ActionButton({ onClick, icon: Icon, label, primary, disabled }) {
+function BioCard({ label, value, unit, icon: Icon, color, trend, safe }) {
     return (
-        <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={onClick}
-            disabled={disabled}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed
-         ${primary
-                    ? 'bg-sky-600 text-white hover:bg-sky-700 border border-transparent box-content hover:shadow-md hover:shadow-sky-200'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-                }`}
-        >
-            <Icon size={16} />
-            {label}
-        </motion.button>
+        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-24 relative overflow-hidden group hover:border-slate-300 transition-all">
+            <div className={`absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity ${color}`}>
+                <Icon size={40} />
+            </div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider z-10">{label}</div>
+            <div className="z-10">
+                <div className="flex items-baseline gap-1">
+                    <span className={`text-2xl font-bold tracking-tight ${safe ? 'text-emerald-600' : 'text-slate-800'}`}>{value}</span>
+                    <span className="text-[10px] text-slate-400 font-medium">{unit}</span>
+                </div>
+                {trend && <div className="text-[10px] text-emerald-500 font-bold mt-1">{trend}</div>}
+            </div>
+        </div>
     )
 }
 
-function MetricCard({ title, value, icon: Icon, color, bg, label }) {
+function TabButton({ active, onClick, icon: Icon, label }) {
     return (
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex justify-between items-start mb-2">
-                <div className={`p-2.5 rounded-lg ${bg} ${color}`}>
-                    <Icon size={20} />
-                </div>
-                <MoreHorizontal size={16} className="text-slate-300 cursor-pointer hover:text-slate-500" />
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${active ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:bg-slate-100'}`}
+        >
+            <Icon size={14} /> {label}
+        </button>
+    )
+}
+
+function ProgressBar({ label, value, color }) {
+    return (
+        <div>
+            <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
+                <span>{label}</span>
+                <span>{value}%</span>
             </div>
-            <div className="mt-3">
-                <h3 className="text-2xl font-bold text-slate-900 tracking-tight">{value}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm font-medium text-slate-500">{title}</span>
-                    {label && <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded border border-slate-200">{label}</span>}
-                </div>
+            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all duration-1000 ${color}`} style={{ width: `${value}%` }}></div>
             </div>
         </div>
     )

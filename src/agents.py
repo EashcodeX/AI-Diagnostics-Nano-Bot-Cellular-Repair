@@ -31,6 +31,7 @@ class NanoBot(Agent):
         self.target_cell = None
         self.battery = 100
         self.history = [] # For trails
+        self.manual_override = False
 
     def step(self):
         if self.battery <= 0:
@@ -40,6 +41,17 @@ class NanoBot(Agent):
         self.history.append(self.pos)
         if len(self.history) > 15:
             self.history.pop(0)
+
+        # Priority Check: Manual Override
+        if self.manual_override:
+            if self.state == "LOW_BATTERY": # Recall mode
+                self.seek_energy()
+            elif self.state == "RECHARGING":
+                if self.battery >= 100:
+                    self.manual_override = False # Auto-release after charge
+                    self.state = "IDLE"
+            self.battery -= 0.1
+            return
 
         if self.state == "IDLE":
             self.random_movement()
@@ -63,8 +75,21 @@ class NanoBot(Agent):
 
         elif self.state == "ACTING":
             self.perform_action()
+            
+        elif self.state == "RECHARGING":
+            if self.battery >= 100:
+                self.state = "IDLE"
 
-        self.battery -= 0.1
+        # Battery Drain
+        drain_rate = 0.1
+        if self.state == "ACTING": drain_rate = 0.5
+        if self.state == "TARGETING": drain_rate = 0.2
+        
+        self.battery -= drain_rate
+        
+        # Low Battery Logic
+        if self.battery < 30 and self.state != "RECHARGING":
+            self.seek_energy()
 
     def broadcast_target(self, target):
         # Brute force neighbor check in 3D
@@ -115,6 +140,14 @@ class NanoBot(Agent):
         # Move step
         self.pos = (x + dx, y + dy, z + dz)
 
+    def seek_energy(self):
+        # Find nearest RechargeStation
+        stations = [a for a in self.model.agents_list if isinstance(a, RechargeStation)]
+        if stations:
+            closest = min(stations, key=lambda s: self.get_distance(self.pos, s.pos))
+            self.state = "LOW_BATTERY"
+            self.move_towards(closest.pos)
+
     def perform_action(self):
         if not self.target_cell:
             self.state = "IDLE"
@@ -131,6 +164,31 @@ class NanoBot(Agent):
                 self.target_cell = None
         else:
             self.state = "IDLE"
+
+    def get_distance(self, pos1, pos2):
+        x1, y1, z1 = pos1
+        x2, y2, z2 = pos2
+        return math.sqrt((x1 - x2)**2 + (y1 - y2)**2 + (z1 - z2)**2)
+
+class RechargeStation(Agent):
+    """
+    Stationary agent that refills NanoBot batteries.
+    """
+    def __init__(self, unique_id, model, pos):
+        super().__init__(model)
+        self.unique_id = unique_id
+        self.pos = pos
+        self.color = "#00ffcc" # Cyan/Green glow
+
+    def step(self):
+        # Refill bots in same position or neighbors
+        # For simplicity in continuous space/sparse grid, check distance
+        radius = 5
+        for agent in self.model.agents_list:
+            if isinstance(agent, NanoBot) and agent.battery < 100:
+                 if self.get_distance(self.pos, agent.pos) <= radius:
+                     agent.battery = min(100, agent.battery + 10) # Charge rate
+                     agent.state = "RECHARGING"
 
     def get_distance(self, pos1, pos2):
         x1, y1, z1 = pos1

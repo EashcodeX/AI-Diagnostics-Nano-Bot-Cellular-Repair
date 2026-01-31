@@ -4,7 +4,7 @@ import { OrbitControls, Stars, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
 // Optimized Agent Component
-function Agent({ pos, type, status, state }) {
+function Agent({ pos, type, status, state, onClick, isSelected }) {
     // Map simulation coords (0-50) to scene coords (-25 to 25)
     const position = [pos[0] - 25, pos[1] - 25, pos[2] - 25];
 
@@ -21,6 +21,9 @@ function Agent({ pos, type, status, state }) {
     // Size Mapping
     const scale = type === 'bot' ? 1.0 : (status === 'cancer' ? 1.2 : 0.8);
 
+    // Highlight Selection
+    const emissiveIntensity = isSelected ? 2.0 : 0.5;
+
     useFrame((state, delta) => {
         if (status === 'cancer') {
             // Pulsing Effect
@@ -28,13 +31,31 @@ function Agent({ pos, type, status, state }) {
         }
     });
 
+    if (type === "station") {
+        return (
+            <group position={position}>
+                <mesh>
+                    <boxGeometry args={[3, 3, 3]} />
+                    <meshStandardMaterial
+                        color="#00ffcc"
+                        emissive="#00ffcc"
+                        emissiveIntensity={0.8}
+                        transparent
+                        opacity={0.6}
+                    />
+                </mesh>
+                <pointLight color="#00ffcc" intensity={2} distance={10} />
+            </group>
+        )
+    }
+
     return (
-        <mesh ref={meshRef} position={position} scale={scale}>
+        <mesh ref={meshRef} position={position} scale={scale} onClick={(e) => { e.stopPropagation(); onClick(); }}>
             <sphereGeometry args={[1, 16, 16]} />
             <meshStandardMaterial
                 color={color}
                 emissive={color}
-                emissiveIntensity={0.5}
+                emissiveIntensity={emissiveIntensity}
                 roughness={0.2}
                 metalness={0.8}
                 transparent
@@ -53,7 +74,7 @@ function GridBox() {
     );
 }
 
-function Scene({ data }) {
+function Scene({ data, onSelect, selectedId }) {
     return (
         <group>
             <ambientLight intensity={0.5} />
@@ -67,6 +88,8 @@ function Scene({ data }) {
                     type={agent.type}
                     status={agent.status}
                     state={agent.state}
+                    onClick={() => onSelect(agent)}
+                    isSelected={selectedId === agent.id}
                 />
             ))}
 
@@ -81,7 +104,7 @@ function Scene({ data }) {
     )
 }
 
-export default function NanoGrid3D({ data }) {
+export default function NanoGrid3D({ data, onSelect, selectedId }) {
     return (
         <div className="w-full h-full bg-slate-900 rounded-lg overflow-hidden relative">
             <Canvas camera={{ position: [40, 40, 40], fov: 50 }}>
@@ -93,7 +116,7 @@ export default function NanoGrid3D({ data }) {
                     minDistance={20}
                     maxDistance={100}
                 />
-                <Scene data={data} />
+                <Scene data={data} onSelect={onSelect} selectedId={selectedId} />
             </Canvas>
 
             <div className="absolute bottom-4 left-4 text-xs font-mono text-slate-500 pointer-events-none">

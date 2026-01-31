@@ -8,7 +8,11 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.environment import Bloodstream
-from src.agents import Cell, NanoBot
+from src.environment import Bloodstream
+from src.agents import Cell, NanoBot, RechargeStation
+from src.database import DatabaseManager
+
+db_manager = DatabaseManager()
 
 app = FastAPI()
 
@@ -23,6 +27,7 @@ app.add_middleware(
 # Global Simulation State
 simulation = None
 running = False
+SIM_SPEED = 0.1 # Default delay in seconds
 
 def get_sim():
     global simulation
@@ -31,11 +36,11 @@ def get_sim():
     return simulation
 
 async def run_simulation():
-    global running, simulation
+    global running, simulation, SIM_SPEED
     while True:
         if running and simulation:
             simulation.step()
-            await asyncio.sleep(0.1) # Control speed
+            await asyncio.sleep(SIM_SPEED) # Control speed
         else:
             await asyncio.sleep(0.5)
 
@@ -48,6 +53,7 @@ def get_status():
     sim = get_sim()
     cells = [a for a in sim.agents_list if isinstance(a, Cell)]
     bots = [a for a in sim.agents_list if isinstance(a, NanoBot)]
+    stations = [a for a in sim.agents_list if isinstance(a, RechargeStation)]
     
     healthy = len([c for c in cells if not c.is_cancer])
     cancer = len([c for c in cells if c.is_cancer])
@@ -63,7 +69,17 @@ def get_status():
             "id": b.unique_id,
             "type": "bot",
             "pos": b.pos,
-            "state": b.state
+            "state": b.state,
+            "battery": b.battery
+        })
+
+    # Send stations
+    for s in stations:
+        agent_data.append({
+            "id": s.unique_id,
+            "type": "station",
+            "pos": s.pos,
+            "status": "active"
         })
         
     # Send cells (only cancer or changing ones? sending all might be heavy but ok for local)
@@ -94,6 +110,7 @@ def get_status():
 @app.post("/control/start")
 def start_sim():
     global running
+    get_sim() # Ensure initialized
     running = True
     return {"status": "started"}
 
@@ -107,8 +124,18 @@ def stop_sim():
 def reset_sim():
     global simulation, running
     running = False
+    if simulation:
+        simulation.collector.stop_collection()
     simulation = Bloodstream()
     return {"status": "reset"}
+
+@app.get("/api/history/runs")
+def get_runs():
+    return db_manager.get_all_runs()
+
+@app.get("/api/history/runs/{run_id}")
+def get_run_details(run_id: int):
+    return db_manager.get_run_metrics(run_id)
 
 @app.post("/spawn/cancer")
 def spawn_cancer():
@@ -122,6 +149,32 @@ def spawn_bot():
     sim.add_bot()
     return {"status": "bot deployed"}
 
+@app.post("/control/config")
+def update_config(speed: float):
+    global SIM_SPEED
+    SIM_SPEED = max(0.01, min(2.0, speed)) # Clamp speed
+    return {"status": "updated", "speed": SIM_SPEED}
+
+@app.post("/control/bot/{bot_id}/command")
+def packet_command(bot_id: int, command: str):
+    sim = get_sim()
+    bot = next((a for a in sim.agents_list if isinstance(a, NanoBot) and a.unique_id == bot_id), None)
+    
+    if not bot:
+        return {"status": "error", "message": "Bot not found"}
+    
+    if command == "RECALL":
+        bot.state = "LOW_BATTERY"
+        bot.manual_override = True
+        return {"status": "success", "message": "Bot recalled to base"}
+    
+    if command == "RELEASE":
+        bot.manual_override = False
+        bot.state = "IDLE"
+        return {"status": "success", "message": "Bot returned to autonomous mode"}
+
+    return {"status": "error", "message": "Unknown command"}
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

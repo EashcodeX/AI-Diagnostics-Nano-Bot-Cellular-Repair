@@ -1,7 +1,9 @@
 from mesa import Model
 # from mesa.space import MultiGrid # Removing 2D grid
-from src.agents import Cell, NanoBot
+from src.agents import Cell, NanoBot, RechargeStation
 from src.config import GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH, CELL_COUNT, INITIAL_CANCER_PCT, NANO_BOT_COUNT
+from src.database import DatabaseManager
+from src.data_collector import DataCollector
 import random
 
 class Bloodstream(Model):
@@ -14,6 +16,15 @@ class Bloodstream(Model):
         self.space_dims = (GRID_WIDTH, GRID_HEIGHT, GRID_DEPTH)
         self.agents_list = [] # Manual scheduler list
         self.running = True
+        
+        # Data Collection
+        self.db = DatabaseManager()
+        self.collector = DataCollector(self.db)
+        self.collector.start_collection({
+            "cell_count": CELL_COUNT,
+            "bot_count": NANO_BOT_COUNT,
+            "cancer_pct": INITIAL_CANCER_PCT
+        })
         
         # Create Cells
         for i in range(CELL_COUNT):
@@ -38,6 +49,12 @@ class Bloodstream(Model):
             bot.pos = (x, y, z)
             self.agents_list.append(bot)
 
+        # Create Recharge Stations (2 Stations at opposite corners)
+        station1 = RechargeStation(CELL_COUNT + NANO_BOT_COUNT + 1, self, (10, 10, 10))
+        station2 = RechargeStation(CELL_COUNT + NANO_BOT_COUNT + 2, self, (GRID_WIDTH-10, GRID_HEIGHT-10, GRID_DEPTH-10))
+        self.agents_list.append(station1)
+        self.agents_list.append(station2)
+
     @property
     def schedule(self):
         class FakeSchedule:
@@ -49,6 +66,8 @@ class Bloodstream(Model):
         random.shuffle(self.agents_list)
         for agent in self.agents_list:
             agent.step()
+        
+        self.collector.log_step(self)
 
     def add_cancer(self):
         # Spawn new cancer cell
